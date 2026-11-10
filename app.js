@@ -12,7 +12,8 @@ document.addEventListener('DOMContentLoaded', () => {
   let offsetX = 0;
   let offsetY = 0;
   let shape = 'circle';
-  let dragging = null;
+  const pointers = new Map();
+  let gesture = null;
   let displayScale = 1;
   let loadId = 0;
   let downloadName = 'avatar';
@@ -23,12 +24,14 @@ document.addEventListener('DOMContentLoaded', () => {
     $('theme').textContent = dark ? '☀' : '☾';
     $('theme').title = dark ? 'Switch to light mode' : 'Switch to dark mode';
     $('theme').setAttribute('aria-label', $('theme').title);
+    $('mask').closest('label').title = `On: translucent. Off: solid ${dark ? 'black' : 'white'}.`;
   }
   $('theme').onclick = () => {
     const theme = document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark';
     document.documentElement.dataset.theme = theme;
     try { localStorage.setItem('avatar-theme', theme); } catch { /* Storage is optional. */ }
     updateTheme();
+    render();
   };
   updateTheme();
 
@@ -68,15 +71,16 @@ document.addEventListener('DOMContentLoaded', () => {
         ctx.arc(width / 2, height / 2, side / 2, 0, Math.PI * 2);
       } else ctx.rect(left, top, side, side);
     }
-    // Cropped-out areas are either translucent or fully black.
+    // The opaque mask and frame contrast with the current theme.
+    const dark = document.documentElement.dataset.theme === 'dark';
     ctx.beginPath();
     ctx.rect(0, 0, width, height);
     framePath();
-    ctx.fillStyle = $('mask').checked ? 'rgba(0, 0, 0, 0.55)' : '#000';
+    ctx.fillStyle = $('mask').checked ? 'rgba(0, 0, 0, 0.55)' : (dark ? '#000' : '#fff');
     ctx.fill('evenodd');
     ctx.beginPath();
     framePath();
-    ctx.strokeStyle = '#fff';
+    ctx.strokeStyle = dark ? '#fff' : '#000';
     ctx.lineWidth = 2;
     ctx.stroke();
   }
@@ -99,25 +103,52 @@ document.addEventListener('DOMContentLoaded', () => {
   };
   $('reset').onclick = () => { offsetX = 0; offsetY = 0; setZoom(1); };
 
+  function touchPosition() {
+    const [first, second = first] = [...pointers.values()];
+    return {
+      x: (first.x + second.x) / 2,
+      y: (first.y + second.y) / 2,
+      distance: Math.hypot(second.x - first.x, second.y - first.y)
+    };
+  }
+  function beginGesture() {
+    canvas.classList.toggle('dragging', pointers.size > 0);
+    gesture = pointers.size ? {
+      position: touchPosition(), zoom, scale: displayScale, offsetX, offsetY
+    } : null;
+  }
   canvas.onpointerdown = event => {
-    if (!image || dragging || (event.pointerType === 'mouse' && event.button !== 0)) return;
-    dragging = { id: event.pointerId, x: event.clientX, y: event.clientY, offsetX, offsetY };
+    if (!image || pointers.size >= 2 || (event.pointerType === 'mouse' && event.button !== 0)) return;
+    pointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
     canvas.setPointerCapture(event.pointerId);
-    canvas.classList.add('dragging');
+    beginGesture();
   };
   canvas.onpointermove = event => {
-    if (!dragging || event.pointerId !== dragging.id) return;
-    offsetX = dragging.offsetX + (event.clientX - dragging.x) / displayScale;
-    offsetY = dragging.offsetY + (event.clientY - dragging.y) / displayScale;
-    render();
-  };
-  function stopDrag(event) {
-    if (dragging && event.pointerId === dragging.id) {
-      dragging = null;
-      canvas.classList.remove('dragging');
+    if (!pointers.has(event.pointerId) || !gesture) return;
+    pointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
+    const position = touchPosition();
+    if (pointers.size === 2) {
+      const nextZoom = clamp(gesture.zoom * position.distance / Math.max(1, gesture.position.distance), 1, 3);
+      const nextScale = gesture.scale * nextZoom / gesture.zoom;
+      const box = canvas.getBoundingClientRect();
+      const centerX = box.left + box.width / 2;
+      const centerY = box.top + box.height / 2;
+      // Keep the image point between the fingers anchored while zooming and panning.
+      offsetX = gesture.offsetX + (position.x - centerX) / nextScale - (gesture.position.x - centerX) / gesture.scale;
+      offsetY = gesture.offsetY + (position.y - centerY) / nextScale - (gesture.position.y - centerY) / gesture.scale;
+      setZoom(nextZoom);
+    } else {
+      offsetX = gesture.offsetX + (position.x - gesture.position.x) / gesture.scale;
+      offsetY = gesture.offsetY + (position.y - gesture.position.y) / gesture.scale;
+      render();
     }
+  };
+  function stopGesture(event) {
+    if (!pointers.delete(event.pointerId)) return;
+    // Rebase on the remaining finger so lifting one finger does not make the image jump.
+    beginGesture();
   }
-  canvas.onpointerup = canvas.onpointercancel = canvas.onlostpointercapture = stopDrag;
+  canvas.onpointerup = canvas.onpointercancel = canvas.onlostpointercapture = stopGesture;
   canvas.addEventListener('wheel', event => {
     if (!image) return;
     event.preventDefault();
@@ -149,7 +180,8 @@ document.addEventListener('DOMContentLoaded', () => {
       URL.revokeObjectURL(url);
       if (thisLoad !== loadId) return;
       image = nextImage;
-      dragging = null;
+      pointers.clear();
+      gesture = null;
       canvas.classList.remove('dragging');
       offsetX = offsetY = 0;
       downloadName = file.name.replace(/\.[^.]+$/, '') || 'avatar';
