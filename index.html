@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Avatar Preview</title>
+  <script src="app.js"></script>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <main>
+    <header>
+      <div><h1>Avatar Preview</h1><p>Upload, find your frame, and download.</p></div>
+      <button id="theme" type="button" aria-label="Switch theme" title="Switch theme">☾</button>
+    </header>
+
+    <section class="card" aria-label="Image cropper">
+      <div class="upload-row">
+        <button id="upload" type="button">Choose image</button>
+        <span id="filename">No image selected</span>
+        <input id="file" type="file" accept="image/png,image/jpeg,image/webp,image/avif,image/gif,image/bmp" hidden>
+      </div>
+
+      <div class="stage" id="stage">
+        <canvas id="canvas" tabindex="0" role="img" aria-label="Image crop preview. Drag or use arrow keys to reposition the image."></canvas>
+        <button class="empty" id="empty" type="button">
+          <svg viewBox="0 0 48 48" aria-hidden="true"><rect x="5" y="5" width="38" height="38" rx="6"/><circle cx="16" cy="16" r="4"/><path d="m5 33 12-12 11 11 6-6 9 9"/></svg>
+          <strong>Choose an image to get started</strong>
+          <span>or drag and drop one here</span>
+        </button>
+      </div>
+      <p class="hint">Drag to move · Use the slider or scroll to zoom</p>
+
+      <fieldset id="controls" disabled aria-label="Crop settings">
+        <div class="toolbar">
+          <button id="shape" type="button" aria-label="Square preview" aria-pressed="false" title="Switch to square preview">
+            <span id="shape-icon" aria-hidden="true"></span>
+            <span id="shape-name">Circle</span>
+            <span aria-hidden="true">&#8644;</span>
+          </button>
+          <label class="mask" title="On: translucent. Off: solid black."><input id="mask" type="checkbox" checked> Translucent mask</label>
+          <div class="zoom">
+            <label for="zoom">Zoom</label>
+            <input id="zoom" type="range" min="100" max="300" value="100">
+            <output id="zoom-value" for="zoom">100%</output>
+          </div>
+        </div>
+        <div class="bottom-row">
+          <button id="reset" type="button">Reset</button>
+          <button id="download" type="button">Download PNG ↓</button>
+        </div>
+      </fieldset>
+      <p class="note">Your download is always square. Circle mode previews how it looks as a round avatar.</p>
+      <p id="message" role="status" aria-live="polite"></p>
+    </section>
+    <footer>Everything stays in your browser. No uploads, no sign-up.</footer>
+  </main>
+
+
+</body>
+</html>
